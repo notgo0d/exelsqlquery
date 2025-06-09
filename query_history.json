@@ -1,0 +1,12 @@
+[
+  {
+    "query": "SELECT CATEGORIA, COUNT(*) AS CANTIDAD \nFROM productos \nGROUP BY CATEGORIA \nORDER BY CANTIDAD DESC",
+    "name": "cantidad de categoria",
+    "timestamp": "2025-06-09T16:48:26.818302"
+  },
+  {
+    "query": "SELECT * FROM Productos LIMIT 10000",
+    "name": "mostrar todo",
+    "timestamp": "2025-06-09T17:07:39.261797"
+  }
+]
