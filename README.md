@@ -91,7 +91,7 @@ Caché de consultas frecuentes para mayor velocidad.
 🤖 Automatización
 
 
-**ROADMAP**
+## **ROADMAP**
 
 🚀 Phase 1: Core UX & Productivity (Weeks 1-4)
 High Priority - Immediate Value
