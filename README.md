@@ -72,6 +72,8 @@ Transformaciones (pivotar, agrupar, filtrar con interfaz gráfica).
 
 📂 Gestión de Consultas y Datos
 
+carpeta de quarys de distintos trabajos
+
 Exportar resultados a Excel, CSV o copiar al portapapeles.
 
 Generador visual de consultas (drag-and-drop para JOINs y WHERE).
