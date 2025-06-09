@@ -89,6 +89,74 @@ Caché de consultas frecuentes para mayor velocidad.
 🚀 Ideas a Largo Plazo
 
 🤖 Automatización
+
+
+**ROADMAP**
+
+🚀 Phase 1: Core UX & Productivity (Weeks 1-4)
+High Priority - Immediate Value
+
+📌 Interfaz de Usuario Mejorada
+
+Pestañas múltiples (essential for workflow efficiency)
+
+Autocompletado SQL (reduces errors, speeds up queries)
+
+Formateador SQL (improves readability instantly)
+
+📂 Gestión de Consultas Básica
+
+Exportar resultados a CSV/Excel (critical for sharing data)
+
+Carpeta de queries por trabajo (basic organization)
+
+⚡ Phase 2: Data Handling & Security (Weeks 5-8)
+Medium Priority - Foundational Features
+3. 📊 Soporte para Formatos
+
+Importar/Exportar CSV/JSON (interoperability)
+
+Conexión a DBs externas (MySQL, PostgreSQL) (expands use cases)
+
+🔐 Seguridad Básica
+
+Advertencia para consultas peligrosas (prevents accidents)
+
+Variables en consultas (e.g., {{fecha}}) (adds flexibility)
+
+📈 Phase 3: Advanced Features (Weeks 9-12)
+High Value - Deeper Functionality
+5. ⚡ Análisis de Datos Avanzado
+
+Estadísticas rápidas (media, percentiles) (quick insights)
+
+Limpieza de datos (nulos, normalización) (saves manual work)
+
+📊 Visualización
+
+Gráficos integrados (Matplotlib/Plotly) (helps non-SQL users)
+
+🛠️ Generador Visual de Consultas
+
+Drag-and-drop para JOINs/WHERE (beginners/low-code)
+
+🌟 Phase 4: Long-Term (Months 3-6+)
+Strategic & Scalability
+8. 🚀 Automatización
+
+Programar consultas recurrentes (e.g., daily reports)
+
+📱 Multiplataforma
+
+Versión web (Flask/Django + SQL.js) (broader access)
+
+🔐 Rendimiento
+
+Caché de consultas (optimization for heavy users)
+
+👤 Perfiles de usuario
+
+Guardar configuraciones/favoritos (personalization)
 Programar consultas recurrentes (ejecutar cada día a una hora específica).
 
 📱 Multiplataforma
