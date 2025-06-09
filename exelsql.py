@@ -17,9 +17,12 @@ class SQLHighlighter(QSyntaxHighlighter):
         fmt.setForeground(QColor("blue"))
         fmt.setFontWeight(QFont.Bold)
         self.keyword_format = fmt
-        self.keywords = ["SELECT","FROM","WHERE","AND","OR","INSERT","INTO","VALUES",
-                         "UPDATE","SET","DELETE","CREATE","TABLE","DROP","ALTER",
-                         "ADD","JOIN","ON","AS","DISTINCT","GROUP","BY","ORDER","LIMIT"]
+        self.keywords = [
+            "SELECT","FROM","WHERE","AND","OR","INSERT","INTO","VALUES",
+            "UPDATE","SET","DELETE","CREATE","TABLE","DROP","ALTER",
+            "ADD","JOIN","ON","AS","DISTINCT","GROUP","BY","ORDER","LIMIT"
+        ]
+
     def highlightBlock(self, text):
         for kw in self.keywords:
             expr = QRegExp(f"\\b{kw}\\b", Qt.CaseInsensitive)
@@ -36,16 +39,19 @@ class AutoCompleteTextEdit(QTextEdit):
         self.completer.setCompletionMode(QCompleter.PopupCompletion)
         self.completer.setCaseSensitivity(Qt.CaseInsensitive)
         self.completer.activated.connect(self.insert_completion)
+
     def insert_completion(self, completion):
         tc = self.textCursor()
         pref = self.completer.completionPrefix()
         tc.movePosition(tc.Left, tc.KeepAnchor, len(pref))
         tc.insertText(completion)
         self.setTextCursor(tc)
+
     def textUnderCursor(self):
         tc = self.textCursor()
         tc.select(tc.WordUnderCursor)
         return tc.selectedText()
+
     def keyPressEvent(self, e):
         super().keyPressEvent(e)
         pref = self.textUnderCursor()
@@ -62,23 +68,32 @@ class ExcelSQLAnalyzer(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Excel SQL Analyzer")
-        self.setGeometry(100,100,1200,800)
-        self.df_dict, self.conn = {}, sqlite3.connect(":memory:")
+        self.setGeometry(100, 100, 1200, 800)
+        self.df_dict = {}
+        self.conn = sqlite3.connect(":memory:")
         self.history_file = "query_history.json"
         self.current_df = None
+        self.dark_mode = False
+
         self.init_ui()
         self.load_history()
+        self.toggle_theme()  # Start in dark mode, remove or change if needed
 
     def init_ui(self):
-        main = QVBoxLayout()
-        fileLayout = QHBoxLayout()
-        btnLoad = QPushButton("Cargar Excel")
-        btnLoad.clicked.connect(self.load_excel)
+        main_layout = QVBoxLayout()
+
+        # File load layout
+        file_layout = QHBoxLayout()
+        btn_load = QPushButton("Cargar Excel")
+        btn_load.clicked.connect(self.load_excel)
         self.sheetCombo = QComboBox()
         self.sheetCombo.currentIndexChanged.connect(self.preview_sheet)
-        fileLayout.addWidget(btnLoad); fileLayout.addWidget(QLabel("Hoja:")); fileLayout.addWidget(self.sheetCombo)
+        file_layout.addWidget(btn_load)
+        file_layout.addWidget(QLabel("Hoja:"))
+        file_layout.addWidget(self.sheetCombo)
 
-        tplLayout = QHBoxLayout()
+        # SQL templates menu (burger button)
+        tpl_layout = QHBoxLayout()
         burger = QToolButton()
         burger.setText("☰ Plantillas SQL")
         burger.setPopupMode(QToolButton.InstantPopup)
@@ -93,62 +108,69 @@ class ExcelSQLAnalyzer(QMainWindow):
         for label, tmpl in snippets.items():
             act = QAction(label, self)
             act.triggered.connect(lambda _, t=tmpl: self.insert_template(t))
-            act.setShortcut(label[0:4])  # shortcut: first 4 letters
-            self.addAction(act)
             menu.addAction(act)
         burger.setMenu(menu)
-        tplLayout.addWidget(burger); tplLayout.addStretch()
+        tpl_layout.addWidget(burger)
+        tpl_layout.addStretch()
 
+        # SQL input with autocomplete and syntax highlight
         self.sqlText = AutoCompleteTextEdit(word_list=self.get_sql_suggestions())
         self.sqlText.setFont(QFont("Courier", 10))
         SQLHighlighter(self.sqlText.document())
 
+        # Query name input
         self.nameEdit = QLineEdit()
         self.nameEdit.setPlaceholderText("Nombre de consulta o carpeta/nombre")
-        btnRun = QPushButton("Ejecutar SQL")
-        btnRun.clicked.connect(self.run_query)
-        btnExportCSV = QPushButton("Exportar CSV")
-        btnExportCSV.clicked.connect(lambda: self.export_results("csv"))
-        btnExportExcel = QPushButton("Exportar Excel")
-        btnExportExcel.clicked.connect(lambda: self.export_results("xlsx"))
-        btnSave = QPushButton("Guardar Consulta")
-        btnSave.clicked.connect(self.save_named_query)
-        # Keyboard shortcuts
-        btnRun.setShortcut(QKeySequence("Ctrl+R"))
-        btnExportCSV.setShortcut(QKeySequence("Ctrl+Shift+C"))
-        btnExportExcel.setShortcut(QKeySequence("Ctrl+Shift+X"))
-        btnSave.setShortcut(QKeySequence("Ctrl+S"))
-        btnLayout = QHBoxLayout()
-        for b in [btnRun, btnSave, btnExportCSV, btnExportExcel]:
-            btnLayout.addWidget(b)
 
+        # Buttons: Run, Save, Export CSV, Export Excel
+        btn_run = QPushButton("Ejecutar SQL")
+        btn_run.clicked.connect(self.run_query)
+        btn_save = QPushButton("Guardar Consulta")
+        btn_save.clicked.connect(self.save_named_query)
+        btn_export_csv = QPushButton("Exportar CSV")
+        btn_export_csv.clicked.connect(lambda: self.export_results("csv"))
+        btn_export_excel = QPushButton("Exportar Excel")
+        btn_export_excel.clicked.connect(lambda: self.export_results("xlsx"))
+
+        # Keyboard shortcuts
+        btn_run.setShortcut(QKeySequence("Ctrl+R"))
+        btn_save.setShortcut(QKeySequence("Ctrl+S"))
+        btn_export_csv.setShortcut(QKeySequence("Ctrl+Shift+C"))
+        btn_export_excel.setShortcut(QKeySequence("Ctrl+Shift+X"))
+
+        btn_layout = QHBoxLayout()
+        for btn in [btn_run, btn_save, btn_export_csv, btn_export_excel]:
+            btn_layout.addWidget(btn)
+
+        # Results table
         self.table = QTableWidget()
+
+        # History tree
         self.historyTree = QTreeWidget()
         self.historyTree.setHeaderLabel("Consultas / Carpetas")
         self.historyTree.itemDoubleClicked.connect(self.load_from_history)
         self.historyTree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.historyTree.customContextMenuRequested.connect(self.history_context_menu)
 
-        main.addLayout(fileLayout)
-        main.addLayout(tplLayout)
-        main.addWidget(QLabel("Consulta SQL:"))
-        main.addWidget(self.sqlText)
-        main.addWidget(QLabel("Nombre de consulta / carpeta/nombre"))
-        main.addWidget(self.nameEdit)
-        main.addLayout(btnLayout)
-        main.addWidget(self.table)
-        main.addWidget(QLabel("Organización de consultas:"))
-        main.addWidget(self.historyTree)
+        # Add widgets to main layout
+        main_layout.addLayout(file_layout)
+        main_layout.addLayout(tpl_layout)
+        main_layout.addWidget(QLabel("Consulta SQL:"))
+        main_layout.addWidget(self.sqlText)
+        main_layout.addWidget(QLabel("Nombre de consulta / carpeta/nombre"))
+        main_layout.addWidget(self.nameEdit)
+        main_layout.addLayout(btn_layout)
+        main_layout.addWidget(self.table)
+        main_layout.addWidget(QLabel("Organización de consultas:"))
+        main_layout.addWidget(self.historyTree)
 
         container = QWidget()
-        container.setLayout(main)
+        container.setLayout(main_layout)
         self.setCentralWidget(container)
-        self.dark_mode = False
-        self.toggle_theme()
 
-    def insert_template(self, t):
+    def insert_template(self, template_text):
         tc = self.sqlText.textCursor()
-        tc.insertText(t)
+        tc.insertText(template_text)
         self.sqlText.setTextCursor(tc)
 
     def toggle_theme(self):
@@ -159,28 +181,38 @@ class ExcelSQLAnalyzer(QMainWindow):
         else:
             QApplication.setStyle(QStyleFactory.create("Fusion"))
             self.setStyleSheet("""
-                QWidget{background:#2b2b2b;color:#fff}
-                QLineEdit,QTextEdit,QComboBox,QTreeWidget{background:#3c3c3c;color:#fff}
-                QPushButton{background:#444;border:1px solid #555;padding:5px}
-                QPushButton:hover{background:#555}
+                QWidget { background:#2b2b2b; color:#fff; }
+                QLineEdit, QTextEdit, QComboBox, QTreeWidget { background:#3c3c3c; color:#fff; }
+                QPushButton { background:#444; border:1px solid #555; padding:5px; }
+                QPushButton:hover { background:#555; }
+                QHeaderView::section { background:#444; color:#fff; }
+                QTableWidget { background:#3c3c3c; color:#fff; }
+                QMenu { background:#3c3c3c; color:#fff; }
             """)
             self.dark_mode = True
 
     def load_excel(self):
         path, _ = QFileDialog.getOpenFileName(self, "Seleccionar archivo Excel", "", "Excel (*.xlsx *.xls)")
         if path:
-            self.df_dict = pd.read_excel(path, sheet_name=None)
-            self.sheetCombo.clear()
-            self.sheetCombo.addItems(self.df_dict.keys())
-            self.preview_sheet()
-            self.sqlText.completer.model().setStringList(self.get_sql_suggestions())
+            try:
+                self.df_dict = pd.read_excel(path, sheet_name=None)
+                self.sheetCombo.clear()
+                self.sheetCombo.addItems(self.df_dict.keys())
+                self.preview_sheet()
+                # Update autocomplete list
+                self.sqlText.completer.model().setStringList(self.get_sql_suggestions())
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"No se pudo cargar Excel:\n{e}")
 
     def preview_sheet(self):
         sheet = self.sheetCombo.currentText()
         if sheet:
-            df = self.df_dict[sheet]
-            df.to_sql(sheet, self.conn, if_exists='replace', index=False)
-            self.show_df(df)
+            try:
+                df = self.df_dict[sheet]
+                df.to_sql(sheet, self.conn, if_exists='replace', index=False)
+                self.show_df(df)
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"No se pudo mostrar hoja:\n{e}")
 
     def run_query(self):
         q = self.sqlText.toPlainText().strip()
@@ -205,7 +237,8 @@ class ExcelSQLAnalyzer(QMainWindow):
         if self.current_df is None:
             QMessageBox.warning(self, "Aviso", "Sin resultados para exportar")
             return
-        path, _ = QFileDialog.getSaveFileName(self, "Exportar", filter="CSV (*.csv)" if fmt=="csv" else "Excel (*.xlsx)")
+        path, _ = QFileDialog.getSaveFileName(self, "Exportar",
+            filter="CSV (*.csv)" if fmt == "csv" else "Excel (*.xlsx)")
         if not path:
             return
         try:
@@ -222,17 +255,61 @@ class ExcelSQLAnalyzer(QMainWindow):
         if not q:
             QMessageBox.warning(self, "Aviso", "Consulta vacía")
             return
-        name, ok = QInputDialog.getText(self, "Guardar", "Carpeta/NombreConsulta", QLineEdit.Normal, self.nameEdit.text())
-        if ok and name:
-            self.nameEdit.setText(name)
-            self.save_history(name, q)
+        
+        # Ask for the name to save the query
+        name, ok = QInputDialog.getText(self, "Guardar Consulta", 
+                                       "Nombre para guardar la consulta:",
+                                       QLineEdit.Normal, self.nameEdit.text())
+        if not ok or not name:
+            return
+        
+        # Ask whether to create new folder or use existing
+        reply = QMessageBox.question(self, "Organizar Consulta",
+                                    "¿Desea crear una nueva carpeta?",
+                                    QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel,
+                                    QMessageBox.Yes)
+        
+        if reply == QMessageBox.Cancel:
+            return
+        
+        if reply == QMessageBox.Yes:
+            # Create new folder
+            folder, ok = QInputDialog.getText(self, "Nueva Carpeta",
+                                            "Nombre de la nueva carpeta:")
+            if not ok or not folder:
+                return
+            full_name = f"{folder}/{name}"
+        else:
+            # Use existing folder
+            folders = set()
+            if os.path.exists(self.history_file):
+                with open(self.history_file, encoding='utf-8') as f:
+                    hist = json.load(f)
+                    folders = {e.get("folder", "") for e in hist}
+            
+            if not folders:
+                full_name = name  # No folders exist yet
+            else:
+                folder, ok = QInputDialog.getItem(self, "Seleccionar Carpeta",
+                                                "Carpeta existente:",
+                                                sorted(folders), 0, False)
+                if not ok:
+                    return
+                full_name = f"{folder}/{name}" if folder else name
+        
+        self.nameEdit.setText(full_name)
+        self.save_history(full_name, q)
 
     def save_history(self, name, query):
         hist = []
         if os.path.exists(self.history_file):
             with open(self.history_file, encoding='utf-8') as f:
                 hist = json.load(f)
-        entry = {"query": query, "full_name": name, "timestamp": pd.Timestamp.now().isoformat()}
+        entry = {
+            "query": query,
+            "full_name": name,
+            "timestamp": pd.Timestamp.now().isoformat()
+        }
         name_parts = name.split("/", 1)
         entry["folder"] = name_parts[0]
         entry["label"] = name_parts[1] if len(name_parts) > 1 else name_parts[0]
@@ -271,46 +348,53 @@ class ExcelSQLAnalyzer(QMainWindow):
         if data:
             menu.addAction("Eliminar", lambda: self.delete_history(data))
             menu.addAction("Mover a carpeta...", lambda: self.move_history(data))
-        else:
-            menu.addAction("Crear carpeta", lambda: self.create_folder(it.text(0)))
-        menu.exec_(self.historyTree.mapToGlobal(pos))
+        menu.exec_(self.historyTree.viewport().mapToGlobal(pos))
 
     def delete_history(self, data):
-        with open(self.history_file, encoding='utf-8') as f:
-            hist = json.load(f)
-        hist = [e for e in hist if e["timestamp"] != data["timestamp"]]
-        with open(self.history_file, "w", encoding='utf-8') as f:
-            json.dump(hist, f, indent=2, ensure_ascii=False)
-        self.load_history()
-
-    def move_history(self, data):
-        folder, ok = QInputDialog.getText(self, "Mover a carpeta", "Nueva carpeta:", QLineEdit.Normal, data.get("folder", ""))
-        if ok:
+        if not data:
+            return
+        if QMessageBox.question(self, "Eliminar", "¿Eliminar consulta?") == QMessageBox.Yes:
+            hist = []
             with open(self.history_file, encoding='utf-8') as f:
                 hist = json.load(f)
-            for e in hist:
-                if e["timestamp"] == data["timestamp"]:
-                    e["folder"] = folder
+            hist = [h for h in hist if h["timestamp"] != data["timestamp"]]
+            with open(self.history_file, "w", encoding='utf-8') as f:
+                json.dump(hist, f, indent=2, ensure_ascii=False)
+            self.load_history()
+
+    def move_history(self, data):
+        if not data:
+            return
+        new_folder, ok = QInputDialog.getText(self, "Mover carpeta", "Nueva carpeta:",
+                                              QLineEdit.Normal, data.get("folder", ""))
+        if ok and new_folder:
+            hist = []
+            with open(self.history_file, encoding='utf-8') as f:
+                hist = json.load(f)
+            for h in hist:
+                if h["timestamp"] == data["timestamp"]:
+                    h["folder"] = new_folder
+                    # Also update full_name accordingly
+                    parts = h["full_name"].split("/", 1)
+                    label = parts[1] if len(parts) > 1 else parts[0]
+                    h["full_name"] = f"{new_folder}/{label}"
                     break
             with open(self.history_file, "w", encoding='utf-8') as f:
                 json.dump(hist, f, indent=2, ensure_ascii=False)
             self.load_history()
 
-    def create_folder(self, name):
-        folder, ok = QInputDialog.getText(self, "Crear carpeta", "Nombre carpeta:")
-        if ok:
-            self.save_history(f"{folder}/", "")
-
     def get_sql_suggestions(self):
-        kws = ["SELECT","FROM","WHERE","AND","OR","INSERT","INTO","VALUES",
-               "UPDATE","SET","DELETE","CREATE","TABLE","DROP","ALTER","ADD",
-               "JOIN","ON","AS","DISTINCT","GROUP","BY","ORDER","LIMIT"]
-        tables = list(self.df_dict.keys())
-        cols = [c for df in self.df_dict.values() for c in df.columns.astype(str)]
-        return sorted(set(kws + tables + cols))
+        # Common SQL keywords + sheet names from loaded Excel
+        keywords = [
+            "SELECT", "FROM", "WHERE", "AND", "OR", "INSERT", "INTO", "VALUES",
+            "UPDATE", "SET", "DELETE", "CREATE", "TABLE", "DROP", "ALTER",
+            "ADD", "JOIN", "ON", "AS", "DISTINCT", "GROUP", "BY", "ORDER", "LIMIT"
+        ]
+        sheets = list(self.df_dict.keys()) if self.df_dict else []
+        return keywords + sheets
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    win = ExcelSQLAnalyzer()
-    win.show()
+    window = ExcelSQLAnalyzer()
+    window.show()
     sys.exit(app.exec_())

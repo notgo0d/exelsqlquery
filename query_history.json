@@ -19,5 +19,12 @@
     "timestamp": "2025-06-09T20:29:44.086706",
     "folder": "productos alphacom",
     "label": "copia familia num"
+  },
+  {
+    "query": "SELECT MARCA, COUNT(*) AS CANTIDAD \nFROM productos \nGROUP BY MARCA \nORDER BY MARCA DESC",
+    "full_name": "productos alphacom/copia marca num",
+    "timestamp": "2025-06-09T21:06:31.572098",
+    "folder": "productos alphacom",
+    "label": "copia marca num"
   }
 ]
