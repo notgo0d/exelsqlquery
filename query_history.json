@@ -1,12 +1,23 @@
 [
   {
     "query": "SELECT CATEGORIA, COUNT(*) AS CANTIDAD \nFROM productos \nGROUP BY CATEGORIA \nORDER BY CANTIDAD DESC",
-    "name": "cantidad de categoria",
-    "timestamp": "2025-06-09T16:48:26.818302"
+    "full_name": "copia categoria num",
+    "timestamp": "2025-06-09T20:21:38.721746",
+    "folder": "productos alphacom",
+    "label": "copia categoria num"
   },
   {
     "query": "SELECT * FROM Productos LIMIT 10000",
-    "name": "mostrar todo",
-    "timestamp": "2025-06-09T17:07:39.261797"
+    "full_name": "todo",
+    "timestamp": "2025-06-09T20:25:42.302078",
+    "folder": "productos alphacom",
+    "label": "todo"
+  },
+  {
+    "query": "SELECT FAMILIA, COUNT(*) AS CANTIDAD \nFROM productos\t \nGROUP BY FAMILIA \nORDER BY FAMILIA DESC",
+    "full_name": "copia familia num",
+    "timestamp": "2025-06-09T20:29:44.086706",
+    "folder": "productos alphacom",
+    "label": "copia familia num"
   }
 ]

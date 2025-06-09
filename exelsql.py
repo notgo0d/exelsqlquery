@@ -1,112 +1,155 @@
-import sys
-import os
+import sys, os, json
 import pandas as pd
 import sqlite3
-import json
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QTextEdit, QPushButton, QVBoxLayout,
     QWidget, QComboBox, QTableWidget, QTableWidgetItem, QLabel, QHBoxLayout,
-    QMessageBox, QListWidget, QSplitter, QStyleFactory, QLineEdit, QInputDialog,
-    QMenu, QListWidgetItem
+    QMessageBox, QTreeWidget, QTreeWidgetItem, QSplitter, QStyleFactory,
+    QLineEdit, QInputDialog, QMenu, QToolButton, QAction, QCompleter
 )
-from PyQt5.QtGui import QFont, QColor, QSyntaxHighlighter, QTextCharFormat
+from PyQt5.QtGui import QFont, QColor, QSyntaxHighlighter, QTextCharFormat, QKeySequence
 from PyQt5.QtCore import Qt, QRegExp
 
 class SQLHighlighter(QSyntaxHighlighter):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.keyword_format = QTextCharFormat()
-        self.keyword_format.setForeground(QColor("blue"))
-        self.keyword_format.setFontWeight(QFont.Bold)
-
-        self.keywords = [
-            "SELECT", "FROM", "WHERE", "AND", "OR", "INSERT", "INTO", "VALUES",
-            "UPDATE", "SET", "DELETE", "CREATE", "TABLE", "DROP", "ALTER",
-            "ADD", "JOIN", "ON", "AS", "DISTINCT", "GROUP", "BY", "ORDER", "LIMIT"
-        ]
-
+        fmt = QTextCharFormat()
+        fmt.setForeground(QColor("blue"))
+        fmt.setFontWeight(QFont.Bold)
+        self.keyword_format = fmt
+        self.keywords = ["SELECT","FROM","WHERE","AND","OR","INSERT","INTO","VALUES",
+                         "UPDATE","SET","DELETE","CREATE","TABLE","DROP","ALTER",
+                         "ADD","JOIN","ON","AS","DISTINCT","GROUP","BY","ORDER","LIMIT"]
     def highlightBlock(self, text):
-        for word in self.keywords:
-            expression = QRegExp(f"\\b{word}\\b", Qt.CaseInsensitive)
-            index = expression.indexIn(text)
-            while index >= 0:
-                length = expression.matchedLength()
-                self.setFormat(index, length, self.keyword_format)
-                index = expression.indexIn(text, index + length)
+        for kw in self.keywords:
+            expr = QRegExp(f"\\b{kw}\\b", Qt.CaseInsensitive)
+            idx = expr.indexIn(text)
+            while idx >= 0:
+                self.setFormat(idx, expr.matchedLength(), self.keyword_format)
+                idx = expr.indexIn(text, idx + expr.matchedLength())
+
+class AutoCompleteTextEdit(QTextEdit):
+    def __init__(self, parent=None, word_list=None):
+        super().__init__(parent)
+        self.completer = QCompleter(word_list or [], self)
+        self.completer.setWidget(self)
+        self.completer.setCompletionMode(QCompleter.PopupCompletion)
+        self.completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self.completer.activated.connect(self.insert_completion)
+    def insert_completion(self, completion):
+        tc = self.textCursor()
+        pref = self.completer.completionPrefix()
+        tc.movePosition(tc.Left, tc.KeepAnchor, len(pref))
+        tc.insertText(completion)
+        self.setTextCursor(tc)
+    def textUnderCursor(self):
+        tc = self.textCursor()
+        tc.select(tc.WordUnderCursor)
+        return tc.selectedText()
+    def keyPressEvent(self, e):
+        super().keyPressEvent(e)
+        pref = self.textUnderCursor()
+        if not pref:
+            self.completer.popup().hide()
+            return
+        self.completer.setCompletionPrefix(pref)
+        cr = self.cursorRect()
+        cr.setWidth(self.completer.popup().sizeHintForColumn(0) +
+                    self.completer.popup().verticalScrollBar().sizeHint().width())
+        self.completer.complete(cr)
 
 class ExcelSQLAnalyzer(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Excel SQL Analyzer")
-        self.setGeometry(100, 100, 1200, 800)
-
-        self.df_dict = {}
-        self.conn = sqlite3.connect(":memory:")
+        self.setGeometry(100,100,1200,800)
+        self.df_dict, self.conn = {}, sqlite3.connect(":memory:")
         self.history_file = "query_history.json"
-
+        self.current_df = None
         self.init_ui()
         self.load_history()
 
     def init_ui(self):
-        layout = QVBoxLayout()
+        main = QVBoxLayout()
+        fileLayout = QHBoxLayout()
+        btnLoad = QPushButton("Cargar Excel")
+        btnLoad.clicked.connect(self.load_excel)
+        self.sheetCombo = QComboBox()
+        self.sheetCombo.currentIndexChanged.connect(self.preview_sheet)
+        fileLayout.addWidget(btnLoad); fileLayout.addWidget(QLabel("Hoja:")); fileLayout.addWidget(self.sheetCombo)
 
-        theme_button = QPushButton("Cambiar Tema")
-        theme_button.clicked.connect(self.toggle_theme)
+        tplLayout = QHBoxLayout()
+        burger = QToolButton()
+        burger.setText("☰ Plantillas SQL")
+        burger.setPopupMode(QToolButton.InstantPopup)
+        menu = QMenu()
+        snippets = {
+            "SELECT * FROM": "SELECT * FROM ",
+            "CREATE TABLE": "CREATE TABLE  (\n);\n",
+            "INSERT INTO": "INSERT INTO  () VALUES ();",
+            "UPDATE SET": "UPDATE  SET  WHERE ;",
+            "DELETE FROM": "DELETE FROM  WHERE ;"
+        }
+        for label, tmpl in snippets.items():
+            act = QAction(label, self)
+            act.triggered.connect(lambda _, t=tmpl: self.insert_template(t))
+            act.setShortcut(label[0:4])  # shortcut: first 4 letters
+            self.addAction(act)
+            menu.addAction(act)
+        burger.setMenu(menu)
+        tplLayout.addWidget(burger); tplLayout.addStretch()
 
-        file_layout = QHBoxLayout()
-        self.load_button = QPushButton("Cargar Excel")
-        self.load_button.clicked.connect(self.load_excel)
-        self.sheet_combo = QComboBox()
-        self.sheet_combo.currentIndexChanged.connect(self.preview_sheet)
-        file_layout.addWidget(self.load_button)
-        file_layout.addWidget(QLabel("Hoja:"))
-        file_layout.addWidget(self.sheet_combo)
-        file_layout.addWidget(theme_button)
+        self.sqlText = AutoCompleteTextEdit(word_list=self.get_sql_suggestions())
+        self.sqlText.setFont(QFont("Courier", 10))
+        SQLHighlighter(self.sqlText.document())
 
-        self.sql_text = QTextEdit()
-        self.sql_text.setFont(QFont("Courier", 10))
-        self.highlighter = SQLHighlighter(self.sql_text.document())
+        self.nameEdit = QLineEdit()
+        self.nameEdit.setPlaceholderText("Nombre de consulta o carpeta/nombre")
+        btnRun = QPushButton("Ejecutar SQL")
+        btnRun.clicked.connect(self.run_query)
+        btnExportCSV = QPushButton("Exportar CSV")
+        btnExportCSV.clicked.connect(lambda: self.export_results("csv"))
+        btnExportExcel = QPushButton("Exportar Excel")
+        btnExportExcel.clicked.connect(lambda: self.export_results("xlsx"))
+        btnSave = QPushButton("Guardar Consulta")
+        btnSave.clicked.connect(self.save_named_query)
+        # Keyboard shortcuts
+        btnRun.setShortcut(QKeySequence("Ctrl+R"))
+        btnExportCSV.setShortcut(QKeySequence("Ctrl+Shift+C"))
+        btnExportExcel.setShortcut(QKeySequence("Ctrl+Shift+X"))
+        btnSave.setShortcut(QKeySequence("Ctrl+S"))
+        btnLayout = QHBoxLayout()
+        for b in [btnRun, btnSave, btnExportCSV, btnExportExcel]:
+            btnLayout.addWidget(b)
 
-        self.query_name_edit = QLineEdit()
-        self.query_name_edit.setPlaceholderText("Nombre para guardar la consulta")
-        
-        button_layout = QHBoxLayout()
-        self.run_button = QPushButton("Ejecutar SQL")
-        self.run_button.clicked.connect(self.run_query)
-        
-        self.save_query_button = QPushButton("Guardar Consulta")
-        self.save_query_button.clicked.connect(self.save_named_query)
-        button_layout.addWidget(self.run_button)
-        button_layout.addWidget(self.save_query_button)
+        self.table = QTableWidget()
+        self.historyTree = QTreeWidget()
+        self.historyTree.setHeaderLabel("Consultas / Carpetas")
+        self.historyTree.itemDoubleClicked.connect(self.load_from_history)
+        self.historyTree.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.historyTree.customContextMenuRequested.connect(self.history_context_menu)
 
-        self.table_widget = QTableWidget()
-
-        self.history_list = QListWidget()
-        self.history_list.itemDoubleClicked.connect(self.load_from_history)
-        self.history_list.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.history_list.customContextMenuRequested.connect(self.show_history_context_menu)
-
-        sql_area = QSplitter(Qt.Horizontal)
-        sql_area.addWidget(self.sql_text)
-        sql_area.addWidget(self.history_list)
-        sql_area.setSizes([800, 200])
-
-        layout.addLayout(file_layout)
-        layout.addWidget(QLabel("Consulta SQL:"))
-        layout.addWidget(self.sql_text)
-        layout.addWidget(QLabel("Nombre de consulta:"))
-        layout.addWidget(self.query_name_edit)
-        layout.addLayout(button_layout)
-        layout.addWidget(self.table_widget)
-        layout.addWidget(QLabel("Historial de consultas:"))
-        layout.addWidget(self.history_list)
+        main.addLayout(fileLayout)
+        main.addLayout(tplLayout)
+        main.addWidget(QLabel("Consulta SQL:"))
+        main.addWidget(self.sqlText)
+        main.addWidget(QLabel("Nombre de consulta / carpeta/nombre"))
+        main.addWidget(self.nameEdit)
+        main.addLayout(btnLayout)
+        main.addWidget(self.table)
+        main.addWidget(QLabel("Organización de consultas:"))
+        main.addWidget(self.historyTree)
 
         container = QWidget()
-        container.setLayout(layout)
+        container.setLayout(main)
         self.setCentralWidget(container)
-
         self.dark_mode = False
         self.toggle_theme()
+
+    def insert_template(self, t):
+        tc = self.sqlText.textCursor()
+        tc.insertText(t)
+        self.sqlText.setTextCursor(tc)
 
     def toggle_theme(self):
         if self.dark_mode:
@@ -115,189 +158,159 @@ class ExcelSQLAnalyzer(QMainWindow):
             self.dark_mode = False
         else:
             QApplication.setStyle(QStyleFactory.create("Fusion"))
-            dark_palette = self.palette()
-            dark_palette.setColor(self.backgroundRole(), QColor(53, 53, 53))
-            dark_palette.setColor(self.foregroundRole(), QColor(255, 255, 255))
             self.setStyleSheet("""
-                QWidget {
-                    background-color: #2b2b2b;
-                    color: #ffffff;
-                }
-                QLineEdit, QTextEdit, QPlainTextEdit, QComboBox, QListWidget {
-                    background-color: #3c3c3c;
-                    color: #ffffff;
-                }
-                QPushButton {
-                    background-color: #444444;
-                    border: 1px solid #555555;
-                    padding: 5px;
-                }
-                QPushButton:hover {
-                    background-color: #555555;
-                }
+                QWidget{background:#2b2b2b;color:#fff}
+                QLineEdit,QTextEdit,QComboBox,QTreeWidget{background:#3c3c3c;color:#fff}
+                QPushButton{background:#444;border:1px solid #555;padding:5px}
+                QPushButton:hover{background:#555}
             """)
             self.dark_mode = True
 
     def load_excel(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Seleccionar archivo Excel", "", "Archivos Excel (*.xlsx *.xls)")
-        if file_path:
-            self.df_dict = pd.read_excel(file_path, sheet_name=None)
-            self.sheet_combo.clear()
-            self.sheet_combo.addItems(self.df_dict.keys())
+        path, _ = QFileDialog.getOpenFileName(self, "Seleccionar archivo Excel", "", "Excel (*.xlsx *.xls)")
+        if path:
+            self.df_dict = pd.read_excel(path, sheet_name=None)
+            self.sheetCombo.clear()
+            self.sheetCombo.addItems(self.df_dict.keys())
             self.preview_sheet()
+            self.sqlText.completer.model().setStringList(self.get_sql_suggestions())
 
     def preview_sheet(self):
-        sheet_name = self.sheet_combo.currentText()
-        if sheet_name:
-            df = self.df_dict[sheet_name]
-            df.to_sql(sheet_name, self.conn, if_exists='replace', index=False)
-            self.show_dataframe(df)
+        sheet = self.sheetCombo.currentText()
+        if sheet:
+            df = self.df_dict[sheet]
+            df.to_sql(sheet, self.conn, if_exists='replace', index=False)
+            self.show_df(df)
 
     def run_query(self):
-        query = self.sql_text.toPlainText().strip()
-        if not query:
+        q = self.sqlText.toPlainText().strip()
+        if not q:
             return
         try:
-            result = pd.read_sql_query(query, self.conn)
-            self.show_dataframe(result)
+            self.current_df = pd.read_sql_query(q, self.conn)
+            self.show_df(self.current_df)
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Error al ejecutar consulta SQL:\n{str(e)}")
+            QMessageBox.critical(self, "Error", f"Error al ejecutar consulta:\n{e}")
 
-    def show_dataframe(self, df):
-        self.table_widget.setRowCount(0)
-        self.table_widget.setColumnCount(0)
+    def show_df(self, df):
+        self.table.clear()
+        self.table.setRowCount(len(df))
+        self.table.setColumnCount(len(df.columns))
+        self.table.setHorizontalHeaderLabels(df.columns.astype(str))
+        for r, row in enumerate(df.values):
+            for c, val in enumerate(row):
+                self.table.setItem(r, c, QTableWidgetItem(str(val)))
 
-        self.table_widget.setColumnCount(len(df.columns))
-        self.table_widget.setHorizontalHeaderLabels(df.columns.astype(str).tolist())
-
-        for row_idx, row in df.iterrows():
-            self.table_widget.insertRow(row_idx)
-            for col_idx, value in enumerate(row):
-                self.table_widget.setItem(row_idx, col_idx, QTableWidgetItem(str(value)))
+    def export_results(self, fmt):
+        if self.current_df is None:
+            QMessageBox.warning(self, "Aviso", "Sin resultados para exportar")
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "Exportar", filter="CSV (*.csv)" if fmt=="csv" else "Excel (*.xlsx)")
+        if not path:
+            return
+        try:
+            if fmt == "csv":
+                self.current_df.to_csv(path, index=False)
+            else:
+                self.current_df.to_excel(path, index=False)
+            QMessageBox.information(self, "Éxito", f"Guardado en:\n{path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error de exportación", str(e))
 
     def save_named_query(self):
-        query = self.sql_text.toPlainText().strip()
-        if not query:
-            QMessageBox.warning(self, "Advertencia", "No hay consulta para guardar")
+        q = self.sqlText.toPlainText().strip()
+        if not q:
+            QMessageBox.warning(self, "Aviso", "Consulta vacía")
             return
-            
-        name, ok = QInputDialog.getText(self, "Guardar consulta", 
-                                       "Introduce un nombre para esta consulta:",
-                                       QLineEdit.Normal, self.query_name_edit.text())
+        name, ok = QInputDialog.getText(self, "Guardar", "Carpeta/NombreConsulta", QLineEdit.Normal, self.nameEdit.text())
         if ok and name:
-            self.query_name_edit.setText(name)
-            self.save_to_history(query, name)
+            self.nameEdit.setText(name)
+            self.save_history(name, q)
 
-    def save_to_history(self, query, name=None):
-        try:
-            history = []
-            if os.path.exists(self.history_file):
-                with open(self.history_file, 'r', encoding='utf-8') as f:
-                    history = json.load(f)
-            
-            new_entry = {
-                "query": query,
-                "name": name if name else f"Consulta {len(history) + 1}",
-                "timestamp": pd.Timestamp.now().isoformat()
-            }
-            
-            history.append(new_entry)
-            
-            with open(self.history_file, 'w', encoding='utf-8') as f:
-                json.dump(history, f, indent=2, ensure_ascii=False)
-            
-            self.load_history()
-            
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"No se pudo guardar la consulta:\n{str(e)}")
-
-    def load_from_history(self, item):
-        data = item.data(Qt.UserRole)
-        self.sql_text.setPlainText(data["query"])
-        self.query_name_edit.setText(data.get("name", ""))
+    def save_history(self, name, query):
+        hist = []
+        if os.path.exists(self.history_file):
+            with open(self.history_file, encoding='utf-8') as f:
+                hist = json.load(f)
+        entry = {"query": query, "full_name": name, "timestamp": pd.Timestamp.now().isoformat()}
+        name_parts = name.split("/", 1)
+        entry["folder"] = name_parts[0]
+        entry["label"] = name_parts[1] if len(name_parts) > 1 else name_parts[0]
+        hist.append(entry)
+        with open(self.history_file, "w", encoding='utf-8') as f:
+            json.dump(hist, f, indent=2, ensure_ascii=False)
+        self.load_history()
 
     def load_history(self):
-        self.history_list.clear()
-        if os.path.exists(self.history_file):
-            try:
-                with open(self.history_file, 'r', encoding='utf-8') as f:
-                    history = json.load(f)
-                
-                for entry in reversed(history):
-                    item_text = f"{entry.get('name', 'Sin nombre')}"
-                    item = QListWidgetItem(item_text)
-                    item.setData(Qt.UserRole, entry)
-                    self.history_list.addItem(item)
-                    
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"No se pudo cargar el historial:\n{str(e)}")
-
-    def show_history_context_menu(self, position):
-        item = self.history_list.itemAt(position)
-        if not item:
+        self.historyTree.clear()
+        if not os.path.exists(self.history_file):
             return
-            
+        with open(self.history_file, encoding='utf-8') as f:
+            hist = json.load(f)
+        folders = {}
+        for e in hist:
+            fld = e.get("folder", "")
+            if fld not in folders:
+                folders[fld] = QTreeWidgetItem(self.historyTree, [fld])
+            itm = QTreeWidgetItem(folders[fld], [e.get("label")])
+            itm.setData(0, Qt.UserRole, e)
+        self.historyTree.expandAll()
+
+    def load_from_history(self, item):
+        data = item.data(0, Qt.UserRole)
+        if data:
+            self.sqlText.setPlainText(data["query"])
+            self.nameEdit.setText(data["full_name"])
+
+    def history_context_menu(self, pos):
+        it = self.historyTree.itemAt(pos)
+        if not it:
+            return
+        data = it.data(0, Qt.UserRole)
         menu = QMenu()
-        rename_action = menu.addAction("Renombrar")
-        delete_action = menu.addAction("Eliminar")
-        
-        action = menu.exec_(self.history_list.mapToGlobal(position))
-        
-        if action == rename_action:
-            self.rename_history_item(item)
-        elif action == delete_action:
-            self.delete_history_item(item)
+        if data:
+            menu.addAction("Eliminar", lambda: self.delete_history(data))
+            menu.addAction("Mover a carpeta...", lambda: self.move_history(data))
+        else:
+            menu.addAction("Crear carpeta", lambda: self.create_folder(it.text(0)))
+        menu.exec_(self.historyTree.mapToGlobal(pos))
 
-    def rename_history_item(self, item):
-        data = item.data(Qt.UserRole)
-        new_name, ok = QInputDialog.getText(self, "Renombrar consulta",
-                                          "Nuevo nombre:",
-                                          QLineEdit.Normal,
-                                          data.get("name", ""))
-        if ok and new_name:
-            try:
-                with open(self.history_file, 'r', encoding='utf-8') as f:
-                    history = json.load(f)
-                
-                for entry in history:
-                    if entry["query"] == data["query"] and entry.get("timestamp") == data.get("timestamp"):
-                        entry["name"] = new_name
-                        break
-                
-                with open(self.history_file, 'w', encoding='utf-8') as f:
-                    json.dump(history, f, indent=2, ensure_ascii=False)
-                
-                self.load_history()
-                
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"No se pudo renombrar:\n{str(e)}")
+    def delete_history(self, data):
+        with open(self.history_file, encoding='utf-8') as f:
+            hist = json.load(f)
+        hist = [e for e in hist if e["timestamp"] != data["timestamp"]]
+        with open(self.history_file, "w", encoding='utf-8') as f:
+            json.dump(hist, f, indent=2, ensure_ascii=False)
+        self.load_history()
 
-    def delete_history_item(self, item):
-        data = item.data(Qt.UserRole)
-        reply = QMessageBox.question(self, "Eliminar consulta",
-                                   "¿Estás seguro de que quieres eliminar esta consulta?",
-                                   QMessageBox.Yes | QMessageBox.No)
-        
-        if reply == QMessageBox.Yes:
-            try:
-                with open(self.history_file, 'r', encoding='utf-8') as f:
-                    history = json.load(f)
-                
-                history = [entry for entry in history if not (
-                    entry["query"] == data["query"] and 
-                    entry.get("timestamp") == data.get("timestamp")
-                )]
-                
-                with open(self.history_file, 'w', encoding='utf-8') as f:
-                    json.dump(history, f, indent=2, ensure_ascii=False)
-                
-                self.load_history()
-                
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"No se pudo eliminar:\n{str(e)}")
+    def move_history(self, data):
+        folder, ok = QInputDialog.getText(self, "Mover a carpeta", "Nueva carpeta:", QLineEdit.Normal, data.get("folder", ""))
+        if ok:
+            with open(self.history_file, encoding='utf-8') as f:
+                hist = json.load(f)
+            for e in hist:
+                if e["timestamp"] == data["timestamp"]:
+                    e["folder"] = folder
+                    break
+            with open(self.history_file, "w", encoding='utf-8') as f:
+                json.dump(hist, f, indent=2, ensure_ascii=False)
+            self.load_history()
+
+    def create_folder(self, name):
+        folder, ok = QInputDialog.getText(self, "Crear carpeta", "Nombre carpeta:")
+        if ok:
+            self.save_history(f"{folder}/", "")
+
+    def get_sql_suggestions(self):
+        kws = ["SELECT","FROM","WHERE","AND","OR","INSERT","INTO","VALUES",
+               "UPDATE","SET","DELETE","CREATE","TABLE","DROP","ALTER","ADD",
+               "JOIN","ON","AS","DISTINCT","GROUP","BY","ORDER","LIMIT"]
+        tables = list(self.df_dict.keys())
+        cols = [c for df in self.df_dict.values() for c in df.columns.astype(str)]
+        return sorted(set(kws + tables + cols))
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    window = ExcelSQLAnalyzer()
-    window.show()
+    win = ExcelSQLAnalyzer()
+    win.show()
     sys.exit(app.exec_())
