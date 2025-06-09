@@ -100,15 +100,15 @@ High Priority - Immediate Value
 
 Pestañas múltiples (essential for workflow efficiency)
 
-Autocompletado SQL (reduces errors, speeds up queries)
+ Autocompletado SQL (reduces errors, speeds up queries)
 
-Formateador SQL (improves readability instantly)
+ Formateador SQL (improves readability instantly)
 
 📂 Gestión de Consultas Básica
 
-Exportar resultados a CSV/Excel (critical for sharing data)
+ Exportar resultados a CSV/Excel (critical for sharing data)
 
-Carpeta de queries por trabajo (basic organization)
+ Carpeta de queries por trabajo (basic organization)
 
 ⚡ Phase 2: Data Handling & Security (Weeks 5-8)
 Medium Priority - Foundational Features
@@ -161,3 +161,11 @@ Programar consultas recurrentes (ejecutar cada día a una hora específica).
 
 📱 Multiplataforma
 Versión web (usando Flask/Django + SQL.js).
+
+
+# **more fix**
+
+better ui
+auto to exel on export to exel 
+auto to csv same as exel
+fast fill fix like not geting stuck when moving and better reading on table
