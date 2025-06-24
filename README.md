@@ -1,171 +1,117 @@
-# Excel SQL Analyzer
 
-Una aplicación de escritorio para analizar archivos Excel mediante consultas SQL, con interfaz gráfica.
+---
 
-## Características principales
+### 📘 `README.md` – Excel SQL Analyzer Pro
 
-- **Carga de archivos Excel**: Soporte para múltiples hojas de cálculo
-- **Editor SQL con resaltado de sintaxis**: Reconocimiento de palabras clave SQL
-- **Ejecución de consultas**: Visualización de resultados en formato tabla
-- **Gestión de historial**:
-  - Guardado automático de consultas
-  - Posibilidad de renombrar y eliminar consultas
-  - Recuperación rápida de consultas anteriores
-- **Temas visuales**: Alternancia entre modo claro y oscuro
-- **Base de datos en memoria**: Uso de SQLite para procesamiento rápido
+````markdown
+# 📊 Excel SQL Analyzer Pro
 
-## Requisitos
+Aplicación de escritorio en PyQt5 para analizar archivos Excel (`.xlsx`) usando consultas SQL. Permite combinar múltiples hojas, visualizar resultados, guardar consultas personalizadas y crear dashboards simples con estadísticas y gráficos.
 
-- Python 3.7 o superior
-- Dependencias:
-  ```
-  pandas
-  PyQt5
-  openpyxl (para soporte de Excel)
-  ```
+---
 
-## Uso
+## 🚀 Características
 
-1. Haz clic en "Cargar Excel" para seleccionar un archivo
-2. Selecciona la hoja de cálculo que deseas analizar
-3. Escribe tu consulta SQL en el editor
-4. Ejecuta la consulta con el botón "Ejecutar SQL"
-5. Los resultados se mostrarán en la tabla inferior
-6. Puedes guardar consultas frecuentes con un nombre descriptivo
+- Carga múltiple de archivos y hojas Excel
+- Ejecución de consultas SQL sobre los datos
+- Resaltado de sintaxis y autocompletado inteligente
+- Filtro rápido en tabla
+- Visualización estadística (`describe`) y gráficos (`matplotlib`)
+- Exportación de resultados a CSV / Excel
+- Historial de consultas organizadas por carpetas
+- Modo oscuro activado por defecto 🌙
 
-## Historial de consultas
+---
 
-Las consultas se guardan automáticamente en un archivo JSON (`query_history.json`) en el mismo directorio que la aplicación. Puedes:
+## 💻 Requisitos
 
-- Hacer doble clic en una consulta del historial para cargarla
-- Renombrar consultas con clic derecho
-- Eliminar consultas no deseadas
+- Python 3.10 o superior
+- Sistema operativo: probado en Arch Linux y otras distros basadas en Linux
+- Entorno virtual (`venv`) recomendado
 
-**🔧 Próximas Funcionalidades**
+---
 
-📌 Interfaz de Usuario Mejorada
+## 🧰 Instalación
 
-Pestañas múltiples: Trabaja con varias consultas al mismo tiempo.
+### 1. Clonar repositorio
 
-Autocompletado SQL: Sugerencias de tablas, columnas y palabras clave.
+```bash
+git clone https://github.com/usuario/excel-sql-analyzer.git
+cd excel-sql-analyzer
+````
 
-Formateador SQL: Indentación automática para consultas legibles.
+### 2. Crear entorno virtual
 
-Gráficos integrados: Visualización de datos con Matplotlib/Plotly.
+```bash
+python -m venv venv
+source venv/bin/activate
+```
 
-Perfiles de usuario: Guardar configuraciones y consultas favoritas.
+### 3. Instalar dependencias
 
+```bash
+pip install -r requirements.txt
+```
 
-📊 Soporte para Más Formatos
+Si no tienes el archivo `requirements.txt`, instala manualmente:
 
-Importar/Exportar a CSV, JSON y otros formatos.
+```bash
+pip install pyqt5 pandas openpyxl matplotlib
+```
 
-Conexión a bases de datos externas (MySQL, PostgreSQL, SQL Server).
+---
 
-⚡ Análisis de Datos Avanzado
+## ▶️ Ejecutar la aplicación
 
-Estadísticas rápidas (media, moda, percentiles).
+Con el entorno virtual activo:
 
-Limpieza de datos (eliminar nulos, normalizar texto).
+```bash
+python exelsql.py
+```
 
-Transformaciones (pivotar, agrupar, filtrar con interfaz gráfica).
+---
 
-📂 Gestión de Consultas y Datos
+## 📝 Uso general
 
-carpeta de quarys de distintos trabajos
+1. Haz clic en **Cargar Excel(s)** y selecciona uno o más archivos `.xlsx`.
+2. Selecciona una hoja desde el combo desplegable.
+3. Visualiza los datos automáticamente.
+4. Escribe consultas SQL en el editor (ej. `SELECT * FROM archivo_hoja`).
+5. Ejecuta con **Ctrl+R** o con el botón `Ejecutar SQL`.
+6. Usa `Visualizar Gráfico` o `Resumen Estadístico` para análisis rápido.
+7. Exporta los resultados a `.csv` o `.xlsx`.
 
-Exportar resultados a Excel, CSV o copiar al portapapeles.
+---
 
-Generador visual de consultas (drag-and-drop para JOINs y WHERE).
+## 🧠 Consejos
 
-Variables en consultas (ej: SELECT * FROM ventas WHERE fecha = '{{fecha}}').
+* Las hojas se renombran automáticamente como `nombrearchivo_nombredelaHoja` para evitar colisiones.
+* Usa el menú `☰ Plantillas SQL` para insertar rápidamente comandos comunes.
+* Guarda tus consultas y organízalas en carpetas.
+* Puedes mover o eliminar consultas desde el historial.
 
-🔐 Seguridad y Rendimiento
+---
 
-Advertencia antes de ejecutar consultas peligrosas (DROP, DELETE sin WHERE).
+## 🐞 Problemas comunes
 
-Caché de consultas frecuentes para mayor velocidad.
+### `ModuleNotFoundError: No module named 'matplotlib'`
 
-🚀 Ideas a Largo Plazo
+Solución:
 
-🤖 Automatización
-
-
-## **ROADMAP**
-
-🚀 Phase 1: Core UX & Productivity (Weeks 1-4)
-High Priority - Immediate Value
-
-📌 Interfaz de Usuario Mejorada
-
-Pestañas múltiples (essential for workflow efficiency)
-
-✅ Autocompletado SQL (reduces errors, speeds up queries)
-
-✅ Formateador SQL (improves readability instantly)
-
-📂 Gestión de Consultas Básica
-
-✅ Exportar resultados a CSV/Excel (critical for sharing data)
-
-✅ Carpeta de queries por trabajo (basic organization)
-
-⚡ Phase 2: Data Handling & Security (Weeks 5-8)
-Medium Priority - Foundational Features
-3. 📊 Soporte para Formatos
-
-Importar/Exportar CSV/JSON (interoperability)
-
-Conexión a DBs externas (MySQL, PostgreSQL) (expands use cases)
-
-🔐 Seguridad Básica
-
-Advertencia para consultas peligrosas (prevents accidents)
-
-Variables en consultas (e.g., {{fecha}}) (adds flexibility)
-
-📈 Phase 3: Advanced Features (Weeks 9-12)
-High Value - Deeper Functionality
-5. ⚡ Análisis de Datos Avanzado
-
-Estadísticas rápidas (media, percentiles) (quick insights)
-
-Limpieza de datos (nulos, normalización) (saves manual work)
-
-📊 Visualización
-
-Gráficos integrados (Matplotlib/Plotly) (helps non-SQL users)
-
-🛠️ Generador Visual de Consultas
-
-Drag-and-drop para JOINs/WHERE (beginners/low-code)
-
-🌟 Phase 4: Long-Term (Months 3-6+)
-Strategic & Scalability
-8. 🚀 Automatización
-
-Programar consultas recurrentes (e.g., daily reports)
-
-📱 Multiplataforma
-
-Versión web (Flask/Django + SQL.js) (broader access)
-
-🔐 Rendimiento
-
-Caché de consultas (optimization for heavy users)
-
-👤 Perfiles de usuario
-
-Guardar configuraciones/favoritos (personalization)
-Programar consultas recurrentes (ejecutar cada día a una hora específica).
-
-📱 Multiplataforma
-Versión web (usando Flask/Django + SQL.js).
-
-
-# **more fix**
-
-better ui
-auto to exel on export to exel 
-auto to csv same as exel
-fast fill fix like not geting stuck when moving and better reading on table
+```bash
+pip install matplotlib
+```
+
+---
+
+## 📂 Estructura recomendada del proyecto
+
+```text
+excel-sql-analyzer/
+├── exelsql.py               # Código principal
+├── query_history.json       # (autogenerado) historial de consultas
+├── README.md                # este archivo
+└── venv/                    # entorno virtual
+```
+
+---
